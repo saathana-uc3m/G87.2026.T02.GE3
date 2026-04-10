@@ -17,48 +17,54 @@ class EnterpriseManager:
         pass
 
     @staticmethod
-    def validate_cif(c: str):
-        """validates a cif number """
-        if not isinstance(c, str):
+    def validate_cif(cif_code: str):
+        """validates a Spanish CIF number (Tax Identification Code)"""
+        if not isinstance(cif_code, str):
             raise EnterpriseManagementException("CIF code must be a string")
-        p = re.compile(r"^[ABCDEFGHJKNPQRSUVW]\d{7}[0-9A-J]$")
-        if not p.fullmatch(c):
+
+        cif_regex_pattern = re.compile(r"^[ABCDEFGHJKNPQRSUVW]\d{7}[0-9A-J]$")
+        if not cif_regex_pattern.fullmatch(cif_code):
             raise EnterpriseManagementException("Invalid CIF format")
 
-        l = c[0]
-        n = c[1:8]
-        u = c[8]
+        letter_prefix = cif_code[0]
+        digits_body = cif_code[1:8]
+        control_character = cif_code[8]
 
-        s1 = 0
-        s2 = 0
+        even_sum = 0
+        odd_sum = 0
 
-        for i in range(len(n)):
+        for i in range(len(digits_body)):
+            current_digit = int(digits_body[i])
             if i % 2 == 0:
-                x = int(n[i]) * 2
-                if x > 9:
-                    s1 = s1 + (x // 10) + (x % 10)
+                # even indices
+                multiplied_digit = current_digit * 2
+                if multiplied_digit > 9:
+                    # Add digits of the result
+                    even_sum += (multiplied_digit // 10) + (multiplied_digit % 10)
                 else:
-                    s1 = s1 + x
+                    even_sum += multiplied_digit
             else:
-                s2 = s2 + int(n[i])
+                # odd indices
+                odd_sum += current_digit
 
-        t = s1 + s2
-        u2 = t % 10
-        r = 10 - u2
+        total_sum = even_sum + odd_sum
+        units_digit = total_sum % 10
+        control_digit_value = 10 - units_digit
 
-        if r == 10:
-            r = 0
+        if control_digit_value == 10:
+            control_digit_value = 0
 
-        dic = "JABCDEFGHI"
+        control_letter_mapping = "JABCDEFGHI"
 
-        if l in ('A', 'B', 'E', 'H'):
-            if str(r) != u:
+        if letter_prefix in ('A', 'B', 'E', 'H'):
+            if str(control_digit_value) != control_character:
                 raise EnterpriseManagementException("Invalid CIF character control number")
-        elif l in ('P', 'Q', 'S', 'K'):
-            if dic[r] != u:
+        elif letter_prefix in ('P', 'Q', 'S', 'K'):
+            if control_letter_mapping[control_digit_value] != control_character:
                 raise EnterpriseManagementException("Invalid CIF character control letter")
         else:
             raise EnterpriseManagementException("CIF type not supported")
+
         return True
 
     def validate_starting_date(self, t_d):
