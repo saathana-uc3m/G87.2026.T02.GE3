@@ -90,8 +90,10 @@ class EnterpriseManager:
         except ValueError as ex:
             raise EnterpriseManagementException("Invalid date format") from ex
 
-        if my_date < datetime.now(timezone.utc).date() or not (2025 <= my_date.year <= 2050):
+        if my_date < datetime.now(timezone.utc).date():
             raise EnterpriseManagementException("Project's date must be today or later.")
+        if not (2025 <= my_date.year <= 2050):
+            raise EnterpriseManagementException("Invalid date format")
         return date_to_validate
 
     # --- FILE I/O HELPERS ---
