@@ -1,5 +1,4 @@
 """Module for managing enterprise projects and documents"""
-import re
 from datetime import datetime, timezone
 from uc3m_consulting.enterprise_project import EnterpriseProject
 from uc3m_consulting.enterprise_management_exception import EnterpriseManagementException
