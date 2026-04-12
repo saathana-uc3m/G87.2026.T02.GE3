@@ -30,39 +30,6 @@ class EnterpriseManager:
         Usually, setup logic is placed here or protected by a flag.
         """
 
-    # --- CIF VALIDATION HELPERS ---
-    def _calculate_cif_sums(self, digits_body):
-        """Calculates even and odd sums for CIF validation."""
-        even_sum = 0
-        odd_sum = 0
-        for i, digit_str in enumerate(digits_body):
-            current_digit = int(digit_str)
-            if i % 2 == 0:
-                multiplied = current_digit * 2
-                even_sum += (multiplied // 10) + (multiplied % 10) if multiplied > 9 else multiplied
-            else:
-                odd_sum += current_digit
-        return even_sum + odd_sum
-
-    def _validate_cif_control(self, letter_prefix, control_digit, control_char):
-        """Validates the control character based on the CIF prefix."""
-        control_letter_mapping = "JABCDEFGHI"
-        if letter_prefix in ('A', 'B', 'E', 'H'):
-            if str(control_digit) != control_char:
-                raise EnterpriseManagementException("Invalid CIF character control number")
-        elif letter_prefix in ('P', 'Q', 'S', 'K'):
-            if control_letter_mapping[control_digit] != control_char:
-                raise EnterpriseManagementException("Invalid CIF character control letter")
-        else:
-            raise EnterpriseManagementException("CIF type not supported")
-
-    # --- DATE VALIDATION HELPERS ---
-    def _check_date_regex(self, date_to_validate):
-        """Checks if date string matches DD/MM/YYYY."""
-        date_pattern = re.compile(r"^(([0-2]\d|3[0-1])\/(0\d|1[0-2])\/\d\d\d\d)$")
-        if not date_pattern.fullmatch(date_to_validate):
-            raise EnterpriseManagementException("Invalid date format")
-
     #pylint: disable=too-many-arguments, too-many-positional-arguments
     def register_project(self,
                          company_cif,
