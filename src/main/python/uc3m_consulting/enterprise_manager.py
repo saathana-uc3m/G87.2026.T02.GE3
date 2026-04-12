@@ -11,8 +11,25 @@ from uc3m_consulting.enterprise_manager_config import (PROJECTS_STORE_FILE,
 from uc3m_consulting.project_document import ProjectDocument
 
 class EnterpriseManager:
-    """Class for providing the methods for managing the orders"""
+    """
+    Singleton Class for managing enterprise projects and documents.
+    Ensures only one instance of the manager exists.
+    """
+    # Class variable to hold the single instance
+    __instance = None
+
+    def __new__(cls):
+        """Overrides __new__ to implement the Singleton pattern."""
+        if cls.__instance is None:
+            cls.__instance = super(EnterpriseManager, cls).__new__(cls)
+        return cls.__instance
+
     def __init__(self):
+        """
+        Constructor. Note: In a Python Singleton, __init__ will run
+        every time EnterpriseManager() is called.
+        Usually, setup logic is placed here or protected by a flag.
+        """
         pass
 
     # --- CIF VALIDATION HELPERS ---
@@ -51,9 +68,11 @@ class EnterpriseManager:
         if not cif_regex.fullmatch(cif_code):
             raise EnterpriseManagementException("Invalid CIF format")
 
-        total_sum = EnterpriseManager()._calculate_cif_sums(cif_code[1:8])
+        # Accessing instance helper through the Singleton instance
+        manager = EnterpriseManager()
+        total_sum = manager._calculate_cif_sums(cif_code[1:8])
         control_digit_value = (10 - (total_sum % 10)) % 10
-        EnterpriseManager()._validate_cif_control(cif_code[0], control_digit_value, cif_code[8])
+        manager._validate_cif_control(cif_code[0], control_digit_value, cif_code[8])
         return True
 
     # --- DATE VALIDATION HELPERS ---
@@ -75,23 +94,7 @@ class EnterpriseManager:
             raise EnterpriseManagementException("Project's date must be today or later.")
         return date_to_validate
 
-    # --- REGISTRATION HELPERS ---
-    def _validate_registration_inputs(self, acronym, description, dept, budget):
-        """Validates various input formats for project registration."""
-        if not re.fullmatch(r"^[a-zA-Z0-9]{5,10}", acronym):
-            raise EnterpriseManagementException("Invalid acronym")
-        if not re.fullmatch(r"^.{10,30}$", description):
-            raise EnterpriseManagementException("Invalid description format")
-        if not re.fullmatch(r"(HR|FINANCE|LEGAL|LOGISTICS)", dept):
-            raise EnterpriseManagementException("Invalid department")
-
-        try:
-            val = float(budget)
-            if not (50000 <= val <= 1000000) or (len(str(val).split('.')[-1]) > 2 if '.' in str(val) else False):
-                raise EnterpriseManagementException("Invalid budget amount")
-        except ValueError as exc:
-            raise EnterpriseManagementException("Invalid budget amount") from exc
-
+    # --- FILE I/O HELPERS ---
     def _load_json_data(self, file_path):
         """Generic JSON loader with error handling."""
         try:
@@ -110,6 +113,23 @@ class EnterpriseManager:
         except FileNotFoundError as ex:
             raise EnterpriseManagementException("Wrong file or file path") from ex
 
+    # --- REGISTRATION AND REPORTING ---
+    def _validate_registration_inputs(self, acronym, description, dept, budget):
+        """Validates various input formats for project registration."""
+        if not re.fullmatch(r"^[a-zA-Z0-9]{5,10}", acronym):
+            raise EnterpriseManagementException("Invalid acronym")
+        if not re.fullmatch(r"^.{10,30}$", description):
+            raise EnterpriseManagementException("Invalid description format")
+        if not re.fullmatch(r"(HR|FINANCE|LEGAL|LOGISTICS)", dept):
+            raise EnterpriseManagementException("Invalid department")
+
+        try:
+            val = float(budget)
+            if not (50000 <= val <= 1000000) or (len(str(val).split('.')[-1]) > 2 if '.' in str(val) else False):
+                raise EnterpriseManagementException("Invalid budget amount")
+        except ValueError as exc:
+            raise EnterpriseManagementException("Invalid budget amount") from exc
+
     #pylint: disable=too-many-arguments, too-many-positional-arguments
     def register_project(self, company_cif, project_acronym, project_description, department, date, budget):
         """registers a new project"""
@@ -127,7 +147,6 @@ class EnterpriseManager:
         self._save_json_data(PROJECTS_STORE_FILE, projects_list)
         return new_project.project_id
 
-    # --- DOCUMENT REPORT HELPERS ---
     def _validate_document_integrity(self, document_data):
         """Checks if a single document's signature is valid."""
         timestamp = document_data["register_date"]
