@@ -1,7 +1,6 @@
-"""Module """
+"""Module for managing enterprise projects and documents"""
 import re
 import json
-
 from datetime import datetime, timezone
 from freezegun import freeze_time
 from uc3m_consulting.enterprise_project import EnterpriseProject
@@ -16,235 +15,148 @@ class EnterpriseManager:
     def __init__(self):
         pass
 
+    # --- CIF VALIDATION HELPERS ---
+    def _calculate_cif_sums(self, digits_body):
+        """Calculates even and odd sums for CIF validation."""
+        even_sum = 0
+        odd_sum = 0
+        for i, digit_str in enumerate(digits_body):
+            current_digit = int(digit_str)
+            if i % 2 == 0:
+                multiplied = current_digit * 2
+                even_sum += (multiplied // 10) + (multiplied % 10) if multiplied > 9 else multiplied
+            else:
+                odd_sum += current_digit
+        return even_sum + odd_sum
+
+    def _validate_cif_control(self, letter_prefix, control_digit, control_char):
+        """Validates the control character based on the CIF prefix."""
+        control_letter_mapping = "JABCDEFGHI"
+        if letter_prefix in ('A', 'B', 'E', 'H'):
+            if str(control_digit) != control_char:
+                raise EnterpriseManagementException("Invalid CIF character control number")
+        elif letter_prefix in ('P', 'Q', 'S', 'K'):
+            if control_letter_mapping[control_digit] != control_char:
+                raise EnterpriseManagementException("Invalid CIF character control letter")
+        else:
+            raise EnterpriseManagementException("CIF type not supported")
+
     @staticmethod
     def validate_cif(cif_code: str):
         """validates a Spanish CIF number (Tax Identification Code)"""
         if not isinstance(cif_code, str):
             raise EnterpriseManagementException("CIF code must be a string")
 
-        cif_regex_pattern = re.compile(r"^[ABCDEFGHJKNPQRSUVW]\d{7}[0-9A-J]$")
-        if not cif_regex_pattern.fullmatch(cif_code):
+        cif_regex = re.compile(r"^[ABCDEFGHJKNPQRSUVW]\d{7}[0-9A-J]$")
+        if not cif_regex.fullmatch(cif_code):
             raise EnterpriseManagementException("Invalid CIF format")
 
-        letter_prefix = cif_code[0]
-        digits_body = cif_code[1:8]
-        control_character = cif_code[8]
-
-        even_sum = 0
-        odd_sum = 0
-
-        for i in range(len(digits_body)):
-            current_digit = int(digits_body[i])
-            if i % 2 == 0:
-                # even indices
-                multiplied_digit = current_digit * 2
-                if multiplied_digit > 9:
-                    # Add digits of the result
-                    even_sum += (multiplied_digit // 10) + (multiplied_digit % 10)
-                else:
-                    even_sum += multiplied_digit
-            else:
-                # odd indices
-                odd_sum += current_digit
-
-        total_sum = even_sum + odd_sum
-        units_digit = total_sum % 10
-        control_digit_value = 10 - units_digit
-
-        if control_digit_value == 10:
-            control_digit_value = 0
-
-        control_letter_mapping = "JABCDEFGHI"
-
-        if letter_prefix in ('A', 'B', 'E', 'H'):
-            if str(control_digit_value) != control_character:
-                raise EnterpriseManagementException("Invalid CIF character control number")
-        elif letter_prefix in ('P', 'Q', 'S', 'K'):
-            if control_letter_mapping[control_digit_value] != control_character:
-                raise EnterpriseManagementException("Invalid CIF character control letter")
-        else:
-            raise EnterpriseManagementException("CIF type not supported")
-
+        total_sum = EnterpriseManager()._calculate_cif_sums(cif_code[1:8])
+        control_digit_value = (10 - (total_sum % 10)) % 10
+        EnterpriseManager()._validate_cif_control(cif_code[0], control_digit_value, cif_code[8])
         return True
 
-    def validate_starting_date(self, date_to_validate):
-        """validates the date format using regex"""
+    # --- DATE VALIDATION HELPERS ---
+    def _check_date_regex(self, date_to_validate):
+        """Checks if date string matches DD/MM/YYYY."""
         date_pattern = re.compile(r"^(([0-2]\d|3[0-1])\/(0\d|1[0-2])\/\d\d\d\d)$")
-        pattern_match = date_pattern.fullmatch(date_to_validate)
-        if not pattern_match:
+        if not date_pattern.fullmatch(date_to_validate):
             raise EnterpriseManagementException("Invalid date format")
 
+    def validate_starting_date(self, date_to_validate):
+        """validates the date format and range"""
+        self._check_date_regex(date_to_validate)
         try:
             my_date = datetime.strptime(date_to_validate, "%d/%m/%Y").date()
         except ValueError as ex:
             raise EnterpriseManagementException("Invalid date format") from ex
 
-        if my_date < datetime.now(timezone.utc).date():
+        if my_date < datetime.now(timezone.utc).date() or not (2025 <= my_date.year <= 2050):
             raise EnterpriseManagementException("Project's date must be today or later.")
-
-        if my_date.year < 2025 or my_date.year > 2050:
-            raise EnterpriseManagementException("Invalid date format")
         return date_to_validate
 
-    #pylint: disable=too-many-arguments, too-many-positional-arguments
-    def register_project(self,
-                         company_cif: str,
-                         project_acronym: str,
-                         project_description: str,
-                         department: str,
-                         date: str,
-                         budget: str):
-        """registers a new project"""
-        self.validate_cif(company_cif)
-
-        acronym_pattern = re.compile(r"^[a-zA-Z0-9]{5,10}")
-        acronym_match = acronym_pattern.fullmatch(project_acronym)
-        if not acronym_match:
+    # --- REGISTRATION HELPERS ---
+    def _validate_registration_inputs(self, acronym, description, dept, budget):
+        """Validates various input formats for project registration."""
+        if not re.fullmatch(r"^[a-zA-Z0-9]{5,10}", acronym):
             raise EnterpriseManagementException("Invalid acronym")
-
-        description_pattern = re.compile(r"^.{10,30}$")
-        description_match = description_pattern.fullmatch(project_description)
-        if not description_match:
+        if not re.fullmatch(r"^.{10,30}$", description):
             raise EnterpriseManagementException("Invalid description format")
-
-        department_pattern = re.compile(r"(HR|FINANCE|LEGAL|LOGISTICS)")
-        department_match = department_pattern.fullmatch(department)
-        if not department_match:
+        if not re.fullmatch(r"(HR|FINANCE|LEGAL|LOGISTICS)", dept):
             raise EnterpriseManagementException("Invalid department")
 
-        self.validate_starting_date(date)
-
         try:
-            budget_float = float(budget)
+            val = float(budget)
+            if not (50000 <= val <= 1000000) or (len(str(val).split('.')[-1]) > 2 if '.' in str(val) else False):
+                raise EnterpriseManagementException("Invalid budget amount")
         except ValueError as exc:
             raise EnterpriseManagementException("Invalid budget amount") from exc
 
-        budget_string = str(budget_float)
-        if '.' in budget_string:
-            decimal_places = len(budget_string.split('.')[1])
-            if decimal_places > 2:
-                raise EnterpriseManagementException("Invalid budget amount")
-
-        if budget_float < 50000 or budget_float > 1000000:
-            raise EnterpriseManagementException("Invalid budget amount")
-
-        new_project = EnterpriseProject(company_cif=company_cif,
-                                        project_acronym=project_acronym,
-                                        project_description=project_description,
-                                        department=department,
-                                        starting_date=date,
-                                        project_budget=budget)
-
+    def _load_json_data(self, file_path):
+        """Generic JSON loader with error handling."""
         try:
-            with open(PROJECTS_STORE_FILE, "r", encoding="utf-8", newline="") as file:
-                projects_list = json.load(file)
+            with open(file_path, "r", encoding="utf-8", newline="") as file:
+                return json.load(file)
         except FileNotFoundError:
-            projects_list = []
+            return []
         except json.JSONDecodeError as ex:
             raise EnterpriseManagementException("JSON Decode Error - Wrong JSON Format") from ex
 
-        for existing_project_data in projects_list:
-            if existing_project_data == new_project.to_json():
-                raise EnterpriseManagementException("Duplicated project in projects list")
+    def _save_json_data(self, file_path, data):
+        """Generic JSON saver."""
+        try:
+            with open(file_path, "w", encoding="utf-8", newline="") as file:
+                json.dump(data, file, indent=2)
+        except FileNotFoundError as ex:
+            raise EnterpriseManagementException("Wrong file or file path") from ex
+
+    #pylint: disable=too-many-arguments, too-many-positional-arguments
+    def register_project(self, company_cif, project_acronym, project_description, department, date, budget):
+        """registers a new project"""
+        self.validate_cif(company_cif)
+        self._validate_registration_inputs(project_acronym, project_description, department, budget)
+        self.validate_starting_date(date)
+
+        new_project = EnterpriseProject(company_cif, project_acronym, project_description, department, date, budget)
+        projects_list = self._load_json_data(PROJECTS_STORE_FILE)
+
+        if any(existing == new_project.to_json() for existing in projects_list):
+            raise EnterpriseManagementException("Duplicated project in projects list")
 
         projects_list.append(new_project.to_json())
-
-        try:
-            with open(PROJECTS_STORE_FILE, "w", encoding="utf-8", newline="") as file:
-                json.dump(projects_list, file, indent=2)
-        except FileNotFoundError as ex:
-            raise EnterpriseManagementException("Wrong file or file path") from ex
-        except json.JSONDecodeError as ex:
-            raise EnterpriseManagementException("JSON Decode Error - Wrong JSON Format") from ex
-
+        self._save_json_data(PROJECTS_STORE_FILE, projects_list)
         return new_project.project_id
 
+    # --- DOCUMENT REPORT HELPERS ---
+    def _validate_document_integrity(self, document_data):
+        """Checks if a single document's signature is valid."""
+        timestamp = document_data["register_date"]
+        doc_dt_utc = datetime.fromtimestamp(timestamp, tz=timezone.utc)
+        with freeze_time(doc_dt_utc):
+            p_doc = ProjectDocument(document_data["project_id"], document_data["file_name"])
+            if p_doc.document_signature != document_data["document_signature"]:
+                raise EnterpriseManagementException("Inconsistent document signature")
+        return True
 
     def find_documents_by_date(self, target_date_str):
-        """
-        Generates a JSON report counting valid documents for a specific date.
+        """Generates a JSON report counting valid documents for a specific date."""
+        self._check_date_regex(target_date_str)
+        document_list = self._load_json_data(TEST_DOCUMENTS_STORE_FILE)
 
-        Checks cryptographic hashes and timestamps to ensure historical data integrity.
-        Saves the output to 'resultado.json'.
+        valid_count = 0
+        for doc in document_list:
+            doc_date = datetime.fromtimestamp(doc["register_date"]).strftime("%d/%m/%Y")
+            if doc_date == target_date_str and self._validate_document_integrity(doc):
+                valid_count += 1
 
-        Args:
-            target_date_str (str): date to query.
-
-        Returns:
-            number of documents found if report is successfully generated and saved.
-
-        Raises:
-            EnterpriseManagementException: On invalid date, file IO errors,
-                missing data, or cryptographic integrity failure.
-        """
-        date_pattern = re.compile(r"^(([0-2]\d|3[0-1])\/(0\d|1[0-2])\/\d\d\d\d)$")
-        pattern_match = date_pattern.fullmatch(target_date_str)
-        if not pattern_match:
-            raise EnterpriseManagementException("Invalid date format")
-
-        try:
-            target_date = datetime.strptime(target_date_str, "%d/%m/%Y").date()
-        except ValueError as ex:
-            raise EnterpriseManagementException("Invalid date format") from ex
-
-
-        # open documents
-        try:
-            with open(TEST_DOCUMENTS_STORE_FILE, "r", encoding="utf-8", newline="") as file:
-                document_list = json.load(file)
-        except FileNotFoundError as ex:
-            raise EnterpriseManagementException("Wrong file or file path") from ex
-
-        valid_document_count = 0
-
-        # Loop to find
-        for document_data in document_list:
-            registration_timestamp = document_data["register_date"]
-
-            # String conversion for easy match
-            doc_date_str = datetime.fromtimestamp(registration_timestamp).strftime("%d/%m/%Y")
-
-            if doc_date_str == target_date_str:
-                document_datetime_utc = datetime.fromtimestamp(registration_timestamp, tz=timezone.utc)
-
-                with freeze_time(document_datetime_utc):
-                    # Check the project id (thanks to freezetime)
-                    # If project_id are different then the data has been manipulated
-                    document_instance = ProjectDocument(
-                        document_data["project_id"],
-                        document_data["file_name"]
-                    )
-
-                    if document_instance.document_signature == document_data["document_signature"]:
-                        valid_document_count += 1
-                    else:
-                        raise EnterpriseManagementException("Inconsistent document signature")
-
-        if valid_document_count == 0:
+        if valid_count == 0:
             raise EnterpriseManagementException("No documents found")
 
-        # Prepare JSON report data
-        current_timestamp = datetime.now(timezone.utc).timestamp()
-        report_entry = {
+        reports = self._load_json_data(TEST_NUMDOCS_STORE_FILE)
+        reports.append({
             "Querydate": target_date_str,
-            "ReportDate": current_timestamp,
-            "Numfiles": valid_document_count
-        }
-
-        try:
-            with open(TEST_NUMDOCS_STORE_FILE, "r", encoding="utf-8", newline="") as file:
-                reports_history = json.load(file)
-        except FileNotFoundError:
-            reports_history = []
-        except json.JSONDecodeError as ex:
-            raise EnterpriseManagementException("JSON Decode Error - Wrong JSON Format") from ex
-
-        reports_history.append(report_entry)
-
-        try:
-            with open(TEST_NUMDOCS_STORE_FILE, "w", encoding="utf-8", newline="") as file:
-                json.dump(reports_history, file, indent=2)
-        except FileNotFoundError as ex:
-            raise EnterpriseManagementException("Wrong file or file path") from ex
-
-        return valid_document_count
+            "ReportDate": datetime.now(timezone.utc).timestamp(),
+            "Numfiles": valid_count
+        })
+        self._save_json_data(TEST_NUMDOCS_STORE_FILE, reports)
+        return valid_count
