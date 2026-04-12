@@ -1,8 +1,6 @@
 """Module for managing enterprise projects and documents"""
 import re
-import json
 from datetime import datetime, timezone
-
 from uc3m_consulting.enterprise_project import EnterpriseProject
 from uc3m_consulting.enterprise_management_exception import EnterpriseManagementException
 from uc3m_consulting.enterprise_manager_config import (PROJECTS_STORE_FILE,
@@ -31,7 +29,6 @@ class EnterpriseManager:
         every time EnterpriseManager() is called.
         Usually, setup logic is placed here or protected by a flag.
         """
-        pass
 
     # --- CIF VALIDATION HELPERS ---
     def _calculate_cif_sums(self, digits_body):
@@ -67,13 +64,27 @@ class EnterpriseManager:
             raise EnterpriseManagementException("Invalid date format")
 
     #pylint: disable=too-many-arguments, too-many-positional-arguments
-    def register_project(self, company_cif, project_acronym, project_description, department, date, budget):
+    def register_project(self,
+                         company_cif,
+                         project_acronym,
+                         project_description,
+                         department,
+                         date,
+                         budget):
         """registers a new project"""
         Validator.validate_cif(company_cif)
-        Validator.validate_registration_inputs(project_acronym, project_description, department, budget)
+        Validator.validate_registration_inputs(project_acronym,
+                                               project_description,
+                                               department,
+                                               budget)
         Validator.validate_starting_date(date)
 
-        new_project = EnterpriseProject(company_cif, project_acronym, project_description, department, date, budget)
+        new_project = EnterpriseProject(company_cif,
+                                        project_acronym,
+                                        project_description,
+                                        department,
+                                        date,
+                                        budget)
         projects_list = JsonRepository.load(PROJECTS_STORE_FILE)
 
         if any(existing == new_project.to_json() for existing in projects_list):

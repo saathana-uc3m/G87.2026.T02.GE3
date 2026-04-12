@@ -233,6 +233,7 @@ class TestRegisterProjectTest(TestCase):
         project_description = "Testing yesteday's project"
         number_budget = 50000.00
         mngr = EnterpriseManager()
+        #pylint: disable=line-too-long
         # enterprise_cif;project_acronym;project_department;project_date;project_description;number_budget;RESULT
 
         if os.path.isfile(PROJECTS_STORE_FILE):
