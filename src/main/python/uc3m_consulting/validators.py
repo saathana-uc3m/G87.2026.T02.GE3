@@ -1,23 +1,19 @@
-import re
 from datetime import datetime, timezone
 from freezegun import freeze_time
 from uc3m_consulting.project_document import ProjectDocument
 from uc3m_consulting.enterprise_management_exception import EnterpriseManagementException
+from uc3m_consulting.attribute import CifAttribute, DateAttribute
 
 class Validator:
-    """Contains all validation rules for CIF and Dates."""
+    """Coordinates complex business validation logic."""
 
     @staticmethod
     def validate_cif(cif_code: str):
-        if not isinstance(cif_code, str):
-            raise EnterpriseManagementException("CIF code must be a string")
+        # Format check via Attribute Class
+        cif_attr = CifAttribute(cif_code)
 
-        cif_regex = re.compile(r"^[ABCDEFGHJKNPQRSUVW]\d{7}[0-9A-J]$")
-        if not cif_regex.fullmatch(cif_code):
-            raise EnterpriseManagementException("Invalid CIF format")
-
-        # Calculate sums
-        digits_body = cif_code[1:8]
+        # Checksum logic remains here (Business Rule, not just Format)
+        digits_body = cif_attr.value[1:8]
         even_sum = 0
         odd_sum = 0
         for i, digit_str in enumerate(digits_body):
@@ -31,9 +27,8 @@ class Validator:
         total_sum = even_sum + odd_sum
         control_digit = (10 - (total_sum % 10)) % 10
 
-        # Validate control char
-        letter_prefix = cif_code[0]
-        control_char = cif_code[8]
+        letter_prefix = cif_attr.value[0]
+        control_char = cif_attr.value[8]
         control_letter_mapping = "JABCDEFGHI"
 
         if letter_prefix in ('A', 'B', 'E', 'H'):
@@ -44,17 +39,10 @@ class Validator:
                 raise EnterpriseManagementException("Invalid CIF character control letter")
         else:
             raise EnterpriseManagementException("CIF type not supported")
-        return True
-
-    @staticmethod
-    def check_date_format(date_str):
-        date_pattern = re.compile(r"^(([0-2]\d|3[0-1])\/(0\d|1[0-2])\/\d\d\d\d)$")
-        if not date_pattern.fullmatch(date_str):
-            raise EnterpriseManagementException("Invalid date format")
 
     @staticmethod
     def validate_starting_date(date_str):
-        Validator.check_date_format(date_str)
+        DateAttribute(date_str) # Regex check
         try:
             my_date = datetime.strptime(date_str, "%d/%m/%Y").date()
         except ValueError as ex:
@@ -64,11 +52,9 @@ class Validator:
             raise EnterpriseManagementException("Project's date must be today or later.")
         if not (2025 <= my_date.year <= 2050):
             raise EnterpriseManagementException("Invalid date format")
-        return date_str
 
     @staticmethod
     def validate_document_integrity(document_data):
-        """Checks if a single document's signature is valid."""
         timestamp = document_data["register_date"]
         doc_dt_utc = datetime.fromtimestamp(timestamp, tz=timezone.utc)
         with freeze_time(doc_dt_utc):
@@ -77,20 +63,12 @@ class Validator:
                 raise EnterpriseManagementException("Inconsistent document signature")
         return True
 
+    @staticmethod
+    def check_for_duplicate_project(new_project, projects_list):
+        if any(existing == new_project.to_json() for existing in projects_list):
+            raise EnterpriseManagementException("Duplicated project in projects list")
 
     @staticmethod
-    def validate_registration_inputs(acronym, description, dept, budget):
-        """Validates various input formats for project registration."""
-        if not re.fullmatch(r"^[a-zA-Z0-9]{5,10}", acronym):
-            raise EnterpriseManagementException("Invalid acronym")
-        if not re.fullmatch(r"^.{10,30}$", description):
-            raise EnterpriseManagementException("Invalid description format")
-        if not re.fullmatch(r"(HR|FINANCE|LEGAL|LOGISTICS)", dept):
-            raise EnterpriseManagementException("Invalid department")
-
-        try:
-            val = float(budget)
-            if not (50000 <= val <= 1000000) or (len(str(val).split('.')[-1]) > 2 if '.' in str(val) else False):
-                raise EnterpriseManagementException("Invalid budget amount")
-        except ValueError as exc:
-            raise EnterpriseManagementException("Invalid budget amount") from exc
+    def check_if_documents_found(count):
+        if count == 0:
+            raise EnterpriseManagementException("No documents found")
