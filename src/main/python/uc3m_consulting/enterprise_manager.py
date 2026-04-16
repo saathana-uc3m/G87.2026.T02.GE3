@@ -8,7 +8,7 @@ from uc3m_consulting.json_operations import JsonRepository
 from uc3m_consulting.validators import Validator
 from uc3m_consulting.attribute import (AcronymAttribute, DescriptionAttribute,
                                        DateAttribute, DepartmentAttribute,
-                                       BudgetAttribute)
+                                       BudgetAttribute, CifAttribute)
 
 class EnterpriseManager:
     """Singleton Class for managing enterprise projects and documents"""
@@ -32,17 +32,14 @@ class EnterpriseManager:
                          budget):
         """Registers a new project by coordinating validation and persistence"""
 
-        # 1. Format Validations (Each raises EnterpriseManagementException internally)
+        # 1. Validation via Attribute instantiation
+        CifAttribute(company_cif)
         AcronymAttribute(project_acronym)
         DescriptionAttribute(project_description)
         DepartmentAttribute(department)
+        DateAttribute(date)
         BudgetAttribute(budget)
 
-        # 2. Complex Business Validations
-        Validator.validate_cif(company_cif)
-        Validator.validate_starting_date(date)
-
-        # 3. Persistence
         new_project = EnterpriseProject(company_cif,
                                         project_acronym,
                                         project_description,
@@ -50,9 +47,10 @@ class EnterpriseManager:
                                         date,
                                         budget)
 
+        # 2. Persistence using current static JsonRepository
         projects_list = JsonRepository.load(PROJECTS_STORE_FILE)
 
-        # Note: We use Validator or a helper if we want to remove the 'raise' below
+        # 3. Duplicate check via Validator
         Validator.check_for_duplicate_project(new_project, projects_list)
 
         projects_list.append(new_project.to_json())
