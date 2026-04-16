@@ -1,12 +1,15 @@
 """Module for managing enterprise projects and documents"""
 from datetime import datetime, timezone
 from uc3m_consulting.enterprise_project import EnterpriseProject
-from uc3m_consulting.enterprise_management_exception import EnterpriseManagementException
 from uc3m_consulting.enterprise_manager_config import (PROJECTS_STORE_FILE,
                                                        TEST_DOCUMENTS_STORE_FILE,
                                                        TEST_NUMDOCS_STORE_FILE)
 from uc3m_consulting.json_operations import JsonRepository
 from uc3m_consulting.validators import Validator
+from uc3m_consulting.attribute import (AcronymAttribute, DescriptionAttribute,
+                                       DateAttribute, DateFormatAttribute,
+                                       DepartmentAttribute, BudgetAttribute,
+                                       CifAttribute)
 
 class EnterpriseManager:
     """Singleton Class for managing enterprise projects and documents"""
@@ -16,6 +19,9 @@ class EnterpriseManager:
         if cls.__instance is None:
             cls.__instance = super(EnterpriseManager, cls).__new__(cls)
         return cls.__instance
+
+    def __init__(self):
+        pass
 
     # pylint: disable=too-many-arguments, too-many-positional-arguments
     def register_project(self,
@@ -27,12 +33,13 @@ class EnterpriseManager:
                          budget):
         """Registers a new project by coordinating validation and persistence"""
 
-        Validator.validate_cif(company_cif)
-        Validator.validate_registration_inputs(project_acronym,
-                                               project_description,
-                                               department,
-                                               budget)
-        Validator.validate_starting_date(date)
+        # 1. Validation via Attribute instantiation
+        CifAttribute(company_cif)
+        AcronymAttribute(project_acronym)
+        DescriptionAttribute(project_description)
+        DepartmentAttribute(department)
+        DateAttribute(date)
+        BudgetAttribute(budget)
 
         new_project = EnterpriseProject(company_cif,
                                         project_acronym,
@@ -41,40 +48,34 @@ class EnterpriseManager:
                                         date,
                                         budget)
 
+        # 2. Persistence using current static JsonRepository
         projects_list = JsonRepository.load(PROJECTS_STORE_FILE)
 
-        if any(existing == new_project.to_json() for existing in projects_list):
-            raise EnterpriseManagementException("Duplicated project in projects list")
+        # 3. Duplicate check via Validator
+        Validator.check_for_duplicate_project(new_project, projects_list)
 
         projects_list.append(new_project.to_json())
         JsonRepository.save(PROJECTS_STORE_FILE, projects_list)
         return new_project.project_id
 
     def find_documents_by_date(self, target_date_str):
-        """Generates a JSON report counting valid documents for a specific date"""
-        Validator.check_date_format(target_date_str)
+        """Coordinates the document report generation"""
+        DateFormatAttribute(target_date_str)
         document_list = JsonRepository.load(TEST_DOCUMENTS_STORE_FILE)
 
-        valid_count = self._count_valid_documents(document_list, target_date_str)
-
-        if valid_count == 0:
-            raise EnterpriseManagementException("No documents found")
-
-        self._save_report(target_date_str, valid_count)
-
-        return valid_count
-
-    def _count_valid_documents(self, document_list, target_date_str):
-        """Internal helper to filter valid documents"""
-        count = 0
+        valid_count = 0
         for doc in document_list:
             doc_date = datetime.fromtimestamp(doc["register_date"]).strftime("%d/%m/%Y")
             if doc_date == target_date_str and Validator.validate_document_integrity(doc):
-                count += 1
-        return count
+                valid_count += 1
+
+        Validator.check_if_documents_found(valid_count)
+
+        self._save_report(target_date_str, valid_count)
+        return valid_count
 
     def _save_report(self, query_date, count):
-        """Internal helper to handle the report persistence"""
+        """Internal helper to handle report persistence"""
         reports = JsonRepository.load(TEST_NUMDOCS_STORE_FILE)
         reports.append({
             "Querydate": query_date,
