@@ -1,3 +1,4 @@
+"""Module containing the Validator class for complex business rules"""
 from datetime import datetime, timezone
 from freezegun import freeze_time
 from uc3m_consulting.project_document import ProjectDocument
@@ -9,6 +10,7 @@ class Validator:
 
     @staticmethod
     def validate_cif(cif_code: str):
+        """Validates the CIF format and the control character checksum"""
         # Format check via Attribute Class
         cif_attr = CifAttribute(cif_code)
 
@@ -42,19 +44,22 @@ class Validator:
 
     @staticmethod
     def validate_starting_date(date_str):
+        """Validates date format via Attribute and checks range/current date"""
         DateAttribute(date_str) # Regex check
         try:
             my_date = datetime.strptime(date_str, "%d/%m/%Y").date()
         except ValueError as ex:
             raise EnterpriseManagementException("Invalid date format") from ex
 
+        if not 2025 <= my_date.year <= 2050:
+            raise EnterpriseManagementException("Invalid date format")
+
         if my_date < datetime.now(timezone.utc).date():
             raise EnterpriseManagementException("Project's date must be today or later.")
-        if not (2025 <= my_date.year <= 2050):
-            raise EnterpriseManagementException("Invalid date format")
 
     @staticmethod
     def validate_document_integrity(document_data):
+        """Checks if a single document's signature is valid."""
         timestamp = document_data["register_date"]
         doc_dt_utc = datetime.fromtimestamp(timestamp, tz=timezone.utc)
         with freeze_time(doc_dt_utc):
@@ -65,10 +70,12 @@ class Validator:
 
     @staticmethod
     def check_for_duplicate_project(new_project, projects_list):
+        """Checks if the project already exists in the repository"""
         if any(existing == new_project.to_json() for existing in projects_list):
             raise EnterpriseManagementException("Duplicated project in projects list")
 
     @staticmethod
     def check_if_documents_found(count):
+        """Raises an exception if no documents were found for the query"""
         if count == 0:
             raise EnterpriseManagementException("No documents found")
