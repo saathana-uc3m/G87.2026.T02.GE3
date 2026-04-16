@@ -1,8 +1,6 @@
 """Module for managing enterprise projects and documents"""
-from datetime import datetime, timezone
 from uc3m_consulting.enterprise_project import EnterpriseProject
-from uc3m_consulting.json_operations import (JsonStoreMaster,
-                                             ProjectsJsonStore,
+from uc3m_consulting.json_operations import (ProjectsJsonStore,
                                              DocumentsJsonStore,
                                              ReportsJsonStore)
 from uc3m_consulting.validators import Validator
@@ -13,6 +11,9 @@ from uc3m_consulting.attribute import (AcronymAttribute, DescriptionAttribute,
 class EnterpriseManager:
     """Singleton Class for managing enterprise projects and documents"""
     __instance = None
+    _projects_store: ProjectsJsonStore
+    _docs_store: DocumentsJsonStore
+    _reports_store: ReportsJsonStore
 
     def __new__(cls):
         if cls.__instance is None:
@@ -25,6 +26,7 @@ class EnterpriseManager:
     # pylint: disable=too-many-arguments, too-many-positional-arguments
     def register_project(self, company_cif, project_acronym, project_description,
                          department, date, budget):
+        """Registers a project if all values are valid"""
         CifAttribute(company_cif)
         AcronymAttribute(project_acronym)
         DescriptionAttribute(project_description)
@@ -40,6 +42,7 @@ class EnterpriseManager:
         return new_project.project_id
 
     def find_documents_by_date(self, target_date_str):
+        """Uses a target date to find documents"""
         DateFormatAttribute(target_date_str)
 
         valid_count = self._docs_store.find_items_by_date(

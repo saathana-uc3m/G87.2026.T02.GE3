@@ -20,6 +20,7 @@ class Validator:
 
     @staticmethod
     def check_for_duplicate_project(new_project_json, projects_list):
+        """Checks if a project already exists"""
         if any(existing == new_project_json for existing in projects_list):
             raise EnterpriseManagementException("Duplicated project in projects list")
 
