@@ -7,8 +7,9 @@ from uc3m_consulting.enterprise_manager_config import (PROJECTS_STORE_FILE,
 from uc3m_consulting.json_operations import JsonRepository
 from uc3m_consulting.validators import Validator
 from uc3m_consulting.attribute import (AcronymAttribute, DescriptionAttribute,
-                                       DateAttribute, DepartmentAttribute,
-                                       BudgetAttribute, CifAttribute)
+                                       DateAttribute, DateFormatAttribute,
+                                       DepartmentAttribute, BudgetAttribute,
+                                       CifAttribute)
 
 class EnterpriseManager:
     """Singleton Class for managing enterprise projects and documents"""
@@ -59,7 +60,7 @@ class EnterpriseManager:
 
     def find_documents_by_date(self, target_date_str):
         """Coordinates the document report generation"""
-        DateAttribute(target_date_str)
+        DateFormatAttribute(target_date_str)
         document_list = JsonRepository.load(TEST_DOCUMENTS_STORE_FILE)
 
         valid_count = 0

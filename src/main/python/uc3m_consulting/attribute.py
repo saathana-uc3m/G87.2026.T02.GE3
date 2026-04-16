@@ -67,23 +67,25 @@ class CifAttribute(Attribute):
             raise EnterpriseManagementException("CIF type not supported")
         return value
 
-class DateAttribute(Attribute):
-    """Class for Date validation including format, year range, and past-date check"""
+class DateFormatAttribute(Attribute):
+    """Checks only the regex format of a date."""
     def __init__(self, value):
         super().__init__()
         self._validation_pattern = r"^(([0-2]\d|3[0-1])\/(0\d|1[0-2])\/\d\d\d\d)$"
         self._error_message = "Invalid date format"
         self.value = value
 
+class DateAttribute(DateFormatAttribute):
+    """Checks format AND business rules (range and past-date)."""
     def _validate(self, value):
-        """Performs regex validation followed by date range/past logic"""
+        # Check format first via parent
         super()._validate(value)
+
         try:
             my_date = datetime.strptime(value, "%d/%m/%Y").date()
         except ValueError as ex:
             raise EnterpriseManagementException("Invalid date format") from ex
 
-        # Order of logic to satisfy specific test case error messages
         if not 2025 <= my_date.year <= 2050:
             raise EnterpriseManagementException("Invalid date format")
         if my_date < datetime.now(timezone.utc).date():
