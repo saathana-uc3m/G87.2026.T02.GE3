@@ -22,9 +22,15 @@ class EnterpriseManager:
     def __init__(self):
         pass
 
-    def register_project(self, company_cif, project_acronym, project_description,
-                         department, date, budget):
-        """Registers a project. All validation is delegated to Attribute and Validator."""
+    # pylint: disable=too-many-arguments, too-many-positional-arguments
+    def register_project(self,
+                         company_cif,
+                         project_acronym,
+                         project_description,
+                         department,
+                         date,
+                         budget):
+        """Registers a new project by coordinating validation and persistence"""
 
         # 1. Format Validations (Each raises EnterpriseManagementException internally)
         AcronymAttribute(project_acronym)
@@ -37,8 +43,12 @@ class EnterpriseManager:
         Validator.validate_starting_date(date)
 
         # 3. Persistence
-        new_project = EnterpriseProject(company_cif, project_acronym, project_description,
-                                        department, date, budget)
+        new_project = EnterpriseProject(company_cif,
+                                        project_acronym,
+                                        project_description,
+                                        department,
+                                        date,
+                                        budget)
 
         projects_list = JsonRepository.load(PROJECTS_STORE_FILE)
 
